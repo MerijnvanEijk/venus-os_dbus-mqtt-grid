@@ -6,8 +6,7 @@ Based on  the work of GitHub repository: [mr-manuel/venus-os_dbus-mqtt-grid](htt
 
 Mr.Manuel wrote this script for himself. He's not responsible, if you damage something using this script.
 I've modified the script with a mode to work directly with [DSMR-reader](https://github.com/dsmrreader/dsmr-reader)
-Its not entirely perfect as some conversion are missing from Mr.Manuel's original script.
-
+Its not entirely perfect as some additions can still be made. I'm also not responsible for any damage or issues with this script.
 
 ## Supporting/Sponsoring this project
 
