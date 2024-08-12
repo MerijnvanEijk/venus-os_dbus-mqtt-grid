@@ -97,6 +97,7 @@ if "DEFAULT" in config and "timeout" in config["DEFAULT"]:
 else:
     timeout = 60
 
+
 """ set storage variables in a global class for storage of both JSON and Direct usage on the dbus."""
 class metering_vault():
     def __init__(self):
@@ -135,7 +136,7 @@ class metering_vault():
 class dmsr_reader():
     def __init__(self):
         self.dsmr_data = {
-        "Timestamp": None, # N/A
+        "timestamp": None, # N/A
         "electricity_currently_delivered": None, # grid_forward
         "electricity_currently_returned": None, # grid_reverse
         "phase_currently_delivered_l1": None, # grid_L1_forward
@@ -157,31 +158,47 @@ class dmsr_reader():
     def get_key_by_index(self, d, i):
         return list(d.keys())[i]
 
-    def handlechangedvalue(self, path, value):
+    def handlechangedvalue(self, path, payload):
+        keys_to_multiply = [
+            'electricity_currently_delivered',
+            'electricity_currently_returned',
+            'phase_currently_delivered_l1',
+            'phase_currently_delivered_l2',
+            'phase_currently_delivered_l3',
+            'phase_currently_returned_l1',
+            'phase_currently_returned_l2',
+            'phase_currently_returned_l3'
+        ]
         key = path.split('/')[-1]
         if key in self.dsmr_data:
+            if key == 'timestamp':
+                return True # Ignore timestamp, not used, we use ID as end of frame update as its always last updated.
             if key == 'id':
                 self.new_data_ready = True
+            # Conversion from base mqtt data payload to float value.
+            payload_str = payload.decode('utf-8')
+            value = float(payload_str)
+            if key in keys_to_multiply:
+                value = value * 1000  # Convert from kW to Watts
 
             self.dsmr_data[key] = value
             return True
         else:
             return False
-     
+
     def convert_to_metering_vault(self):
         mv = metering_vault()
-
         # Map DSMR data to metering_vault data
-        mv.grid_metrics["grid_forward"] = self.dsmr_data["electricity_currently_delivered"]
-        mv.grid_metrics["grid_reverse"] = self.dsmr_data["electricity_currently_returned"]
+        mv.grid_metrics["grid_forward"] = self.dsmr_data["electricity_currently_delivered"] / 1000
+        mv.grid_metrics["grid_reverse"] = self.dsmr_data["electricity_currently_returned"] / 1000
 
-        mv.grid_metrics["grid_L1_forward"] = self.dsmr_data["phase_currently_delivered_l1"]
-        mv.grid_metrics["grid_L2_forward"] = self.dsmr_data["phase_currently_delivered_l2"]
-        mv.grid_metrics["grid_L3_forward"] = self.dsmr_data["phase_currently_delivered_l3"]
+        mv.grid_metrics["grid_L1_forward"] = self.dsmr_data["phase_currently_delivered_l1"] / 1000
+        mv.grid_metrics["grid_L2_forward"] = self.dsmr_data["phase_currently_delivered_l2"] / 1000
+        mv.grid_metrics["grid_L3_forward"] = self.dsmr_data["phase_currently_delivered_l3"] / 1000
 
-        mv.grid_metrics["grid_L1_reverse"] = self.dsmr_data["phase_currently_returned_l1"]
-        mv.grid_metrics["grid_L2_reverse"] = self.dsmr_data["phase_currently_returned_l2"]
-        mv.grid_metrics["grid_L3_reverse"] = self.dsmr_data["phase_currently_returned_l3"]
+        mv.grid_metrics["grid_L1_reverse"] = self.dsmr_data["phase_currently_returned_l1"] / 1000
+        mv.grid_metrics["grid_L2_reverse"] = self.dsmr_data["phase_currently_returned_l2"] / 1000
+        mv.grid_metrics["grid_L3_reverse"] = self.dsmr_data["phase_currently_returned_l3"] / 1000
 
         mv.grid_metrics["grid_L1_voltage"] = self.dsmr_data["phase_voltage_l1"]
         mv.grid_metrics["grid_L2_voltage"] = self.dsmr_data["phase_voltage_l2"]
@@ -191,23 +208,45 @@ class dmsr_reader():
         mv.grid_metrics["grid_L2_current"] = self.dsmr_data["phase_power_current_l2"]
         mv.grid_metrics["grid_L3_current"] = self.dsmr_data["phase_power_current_l3"]
 
-        # Optionally, you can calculate or derive other fields
-        mv.grid_metrics["grid_current"] = (mv.grid_metrics["grid_L1_current"] or 0) + \
-                                          (mv.grid_metrics["grid_L2_current"] or 0) + \
-                                          (mv.grid_metrics["grid_L3_current"] or 0)
+        if self.dsmr_data["phase_currently_delivered_l1"] != 0:
+            mv.grid_metrics["grid_L1_power"] = self.dsmr_data["phase_currently_delivered_l1"]
+        else:
+            mv.grid_metrics["grid_L1_power"] = self.dsmr_data["phase_currently_returned_l1"]
+
+        if self.dsmr_data["phase_currently_delivered_l2"] != 0:
+            mv.grid_metrics["grid_L2_power"] = self.dsmr_data["phase_currently_delivered_l2"]
+        else:
+            mv.grid_metrics["grid_L2_power"] = self.dsmr_data["phase_currently_returned_l2"]
+
+        if self.dsmr_data["phase_currently_delivered_l3"] != 0:
+            mv.grid_metrics["grid_L3_power"] = self.dsmr_data["phase_currently_delivered_l3"]
+        else:
+            mv.grid_metrics["grid_L3_power"] = self.dsmr_data["phase_currently_returned_l3"]
+
+        if self.dsmr_data["electricity_currently_delivered"] != 0:
+            mv.grid_metrics["grid_power"] = self.dsmr_data["electricity_currently_delivered"]
+        else:
+            mv.grid_metrics["grid_power"] = self.dsmr_data["electricity_currently_returned"]
+        # Total grid current on metrics stored.
+        mv.grid_metrics["grid_current"] = (self.dsmr_data["phase_power_current_l1"] or 0) + \
+                                          (self.dsmr_data["phase_power_current_l2"] or 0) + \
+                                          (self.dsmr_data["phase_power_current_l3"] or 0)
 
         mv.grid_metrics["grid_voltage"] = max(
             mv.grid_metrics["grid_L1_voltage"] or 0,
             mv.grid_metrics["grid_L2_voltage"] or 0,
             mv.grid_metrics["grid_L3_voltage"] or 0
         )
+
         # Fake these, they don't show in DSMR reader.
         mv.grid_metrics["grid_L1_frequency"] =  50.0
         mv.grid_metrics["grid_L2_frequency"] =  50.0
         mv.grid_metrics["grid_L3_frequency"] =  50.0
 
-        # Update the grid status last_updated field
-        mv.grid_status["last_updated"] = self.dsmr_data["id"]
+        # Update the grid status last_changed field
+        mv.grid_status["last_changed"] = int(time())
+
+        self.new_data_ready = False
 
         return mv
 
@@ -246,13 +285,16 @@ def on_connect(client, userdata, flags, rc):
     if rc == 0:
         logging.info("MQTT client: Connected to MQTT broker!")
         connected = 1
-        if config["mode"] == "dsmr":
+        if config["MQTT"]["mode"] == "dsmr":
+            logging.info("Using DSMR Mode")
             for i in range(len(dsmr.dsmr_data)):
                 key = dsmr.get_key_by_index(dsmr.dsmr_data, i)
-                client.subscribe(config["MQTT"]["topic" + "/" + key])
+                logging.info("Subscribing to topic {}".format(config["MQTT"]["topic"] + "/" + key))
+                client.subscribe(config["MQTT"]["topic"] + "/" + key)
         else: # Default is single topic with JSON fields.
+            logging.info("Using JSON Mode")
+            logging.info("Subscribing to topic: {}".format(config["MQTT"]["topic"]))
             client.subscribe(config["MQTT"]["topic"])
-
     else:
         logging.error("MQTT client: Failed to connect, return code %d\n", rc)
 
@@ -441,35 +483,43 @@ def on_message_json(msg, jsonpayload):
 def on_message_dsmr_reader(msg):
     global dsmr, MeterV
     if config["MQTT"]["topic"] in msg.topic:
-        if dsmr.handlechangedvalue(msg.topic,msg.payload) is False:
-            logging.warning("Topic contained unknown key to update a value of {} with payload {}".format(msg.topic,msg.payload))
+        try:
+            if dsmr.handlechangedvalue(msg.topic,msg.payload) is False:
+                logging.warning("Topic contained unknown key to update a value of {} with payload {}".format(msg.topic,msg.payload))
+        except Exception:
+            logging.error("Error on handle value")
+            logging.error(type(msg.payload))
+            logging.error(msg.payload)
+            logging.error(msg.topic)
 
         if dsmr.new_data_ready is True:
-            # We need to update the whole set to metering vault.
+            logging.info("DSMR Conversion based on new ID")
             MeterV = dsmr.convert_to_metering_vault()
-            # Reset Dataset update flag
-            dsmr.new_data_ready = False
 
 def on_message(client, userdata, msg):
     try:
         global MeterV
-        if msg.payload == "" and msg.payload == b"":
+        if not msg.payload or msg.payload == b"":
             logging.warning("Received JSON MQTT message was empty and therefore it was ignored")
-            logging.debug("MQTT payload: " + str(msg.payload)[1:])
+            logging.debug("MQTT payload: " + str(msg.payload))
             return
-        
-        if config["mode"] == "dsmr":
-            on_message_dsmr_reader(msg)
+
+        if config["MQTT"]["mode"] == "dsmr":
+            if isinstance(msg.payload, bytes):
+                on_message_dsmr_reader(msg)
+            else:
+                logging.info("Non byte type received, ignoring.")
+
         else:
             #default to json, so get JSON from topic
             if msg.topic == config["MQTT"]["topic"]:
                 MeterV.grid_status["last_changed"] = int(time())
                 jsonpayload = json.loads(msg.payload)
                 on_message_json(msg, jsonpayload)
-                    
+
     except ValueError as e:
         logging.error("Received message is not a valid JSON. %s" % e)
-        logging.debug("MQTT payload: " + str(msg.payload)[1:])
+        logging.debug("MQTT payload: " + str(msg.payload))
 
     except Exception:
         exception_type, exception_object, exception_traceback = sys.exc_info()
@@ -478,7 +528,7 @@ def on_message(client, userdata, msg):
         print(
             f"Exception occurred: {repr(exception_object)} of type {exception_type} in {file} line #{line}"
         )
-        logging.debug("MQTT payload: " + str(msg.payload)[1:])
+        logging.debug("MQTT payload: " + str(msg.payload))
 
 
 class DbusMqttGridService:
@@ -524,7 +574,7 @@ class DbusMqttGridService:
                 onchangecallback=self._handlechangedvalue,
             )
 
-        GLib.timeout_add(1000, self._update)  # pause 1000ms before the next request
+        GLib.timeout_add(250, self._update)  # pause 250ms before the next request
 
     def _update(self):
         global MeterV
@@ -687,7 +737,7 @@ class DbusMqttGridService:
             sys.exit()
 
         # quit driver if timeout is exceeded
-        if timeout != 0 and (now - last_changed) > timeout:
+        if timeout != 0 and (now - MeterV.grid_status["last_changed"]) > timeout:
             logging.error(
                 "Driver stopped. Timeout of %i seconds exceeded, since no new MQTT message was received in this time."
                 % timeout
@@ -770,7 +820,7 @@ def main():
 
     # wait to receive first data, else the JSON is empty and phase setup won't work
     i = 0
-    while grid_power == -1:
+    while MeterV.grid_metrics["grid_power"] == -1:
         if i % 12 != 0 or i == 0:
             logging.info("Waiting 5 seconds for receiving first data...")
         else:
@@ -829,7 +879,7 @@ def main():
         "/UpdateIndex": {"initial": 0, "textformat": _n},
     }
 
-    if grid_L2_power is not None:
+    if MeterV.grid_metrics["grid_L2_power"] is not None:
         paths_dbus.update(
             {
                 "/Ac/L2/Power": {"initial": 0, "textformat": _w},
@@ -841,7 +891,7 @@ def main():
             }
         )
 
-    if grid_L3_power is not None:
+    if MeterV.grid_metrics["grid_L3_power"] is not None:
         paths_dbus.update(
             {
                 "/Ac/L3/Power": {"initial": 0, "textformat": _w},
