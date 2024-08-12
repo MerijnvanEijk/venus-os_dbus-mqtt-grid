@@ -1,15 +1,18 @@
 # dbus-mqtt-grid - Emulates a physical Grid/Genset/AC Load Meter from MQTT data
 
-<small>GitHub repository: [mr-manuel/venus-os_dbus-mqtt-grid](https://github.com/mr-manuel/venus-os_dbus-mqtt-grid)</small>
+Based on  the work of GitHub repository: [mr-manuel/venus-os_dbus-mqtt-grid](https://github.com/mr-manuel/venus-os_dbus-mqtt-grid)
 
 ### Disclaimer
 
-I wrote this script for myself. I'm not responsible, if you damage something using my script.
+Mr.Manuel wrote this script for himself. He's not responsible, if you damage something using this script.
+I've modified the script with a mode to work directly with [DSMR-reader](https://github.com/dsmrreader/dsmr-reader)
+Its not entirely perfect as some conversion are missing from Mr.Manuel's original script.
 
 
 ## Supporting/Sponsoring this project
 
-You like the project and you want to support me?
+If you like the project and you want to support mr.Manual's work you can still do that below: 
+He did the bulk of the work.
 
 [<img src="https://github.md0.eu/uploads/donate-button.svg" height="50">](https://www.paypal.com/donate/?hosted_button_id=3NEVZBDM5KABW)
 
@@ -20,10 +23,15 @@ The script emulates a physical Grid/Genset/AC Load Meter in Venus OS. It gets th
 
 It also supports the Tasmota-SmartMeter format.
 
+Why I forked it and updated it: It now also supports default DSMR-Reader split topic MQTT output.  I did not want a seperate process on a different client parsing the DSMR-Reader output and sorting it into a JSON configuration. I'd prefer a more direct on Venus-OS operated mode. This is why I made a few changes. I didn't prefer to enable more mqtt topics from DSMR-reader, and changing all the integration from DSMR-Reader to different set of topics was not desired. For more information see the Config and DSMR section below.
 
 ### Config
 
 Copy or rename the `config.sample.ini` to `config.ini` in the `dbus-mqtt-grid` folder and change it as you need it.
+
+To switch betweeen JSON/Tasmota mode and DSMR the config can be modified by a mode entry:
+Default is: `mode = json`
+Alternative DSMR-Reader mode is `mode = json`
 
 ### JSON structure
 
@@ -185,6 +193,33 @@ config.ini topic = SML/SENSOR
 ```
 
 Additional information can be found in this [issue](https://github.com/mr-manuel/venus-os_dbus-mqtt-grid/issues/13#issue-2045377392).
+
+#### DSMR
+Works with DSMR-Reader default topics
+Configuration in the config.ini base topic can be anything, but if using the default its dsmr/reading. Supported split topics are:
+<br>
+`<dsmr/reading>/id` <br>
+`<dsmr/reading>/phase_power_current_l3` <br>
+`<dsmr/reading>/phase_power_current_l2` <br>
+`<dsmr/reading>/phase_power_current_l1` <br>
+`<dsmr/reading>/phase_voltage_l3` <br>
+`<dsmr/reading>/phase_voltage_l2` <br>
+`<dsmr/reading>/phase_voltage_l1` <br>
+`<dsmr/reading>/phase_currently_returned_l3` <br>
+`<dsmr/reading>/phase_currently_returned_l2` <br>
+`<dsmr/reading>/phase_currently_returned_l1` <br>
+`<dsmr/reading>/extra_device_delivered` <br>
+`<dsmr/reading>/extra_device_timestamp` <br>
+`<dsmr/reading>/phase_currently_delivered_l3` <br>
+`<dsmr/reading>/phase_currently_delivered_l2` <br>
+`<dsmr/reading>/phase_currently_delivered_l1` <br>
+`<dsmr/reading>/electricity_currently_returne` <br>
+`<dsmr/reading>/electricity_currently_delivered` <br>
+`<dsmr/reading>/electricity_returned_2` <br>
+`<dsmr/reading>/electricity_delivered_2` <br>
+`<dsmr/reading>/electricity_returned_1` <br>
+`<dsmr/reading>/electricity_delivered_1` <br>
+`<dsmr/reading>/timestamp` <br>
 
 #### Home Assistant
 
