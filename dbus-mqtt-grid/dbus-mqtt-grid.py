@@ -211,22 +211,22 @@ class dmsr_reader():
         if self.dsmr_data["phase_currently_delivered_l1"] != 0:
             mv.grid_metrics["grid_L1_power"] = self.dsmr_data["phase_currently_delivered_l1"]
         else:
-            mv.grid_metrics["grid_L1_power"] = self.dsmr_data["phase_currently_returned_l1"]
+            mv.grid_metrics["grid_L1_power"] = self.dsmr_data["phase_currently_returned_l1"] * -1
 
         if self.dsmr_data["phase_currently_delivered_l2"] != 0:
             mv.grid_metrics["grid_L2_power"] = self.dsmr_data["phase_currently_delivered_l2"]
         else:
-            mv.grid_metrics["grid_L2_power"] = self.dsmr_data["phase_currently_returned_l2"]
+            mv.grid_metrics["grid_L2_power"] = self.dsmr_data["phase_currently_returned_l2"] * -1
 
         if self.dsmr_data["phase_currently_delivered_l3"] != 0:
             mv.grid_metrics["grid_L3_power"] = self.dsmr_data["phase_currently_delivered_l3"]
         else:
-            mv.grid_metrics["grid_L3_power"] = self.dsmr_data["phase_currently_returned_l3"]
+            mv.grid_metrics["grid_L3_power"] = self.dsmr_data["phase_currently_returned_l3"] * -1
 
-        if self.dsmr_data["electricity_currently_delivered"] != 0:
-            mv.grid_metrics["grid_power"] = self.dsmr_data["electricity_currently_delivered"]
+        if self.dsmr_data["electricity_currently_delivered"] < self.dsmr_data["electricity_currently_returned"]:
+            mv.grid_metrics["grid_power"] = (self.dsmr_data["electricity_currently_returned"] - self.dsmr_data["electricity_currently_delivered"]) * -1
         else:
-            mv.grid_metrics["grid_power"] = self.dsmr_data["electricity_currently_returned"]
+            mv.grid_metrics["grid_power"] = self.dsmr_data["electricity_currently_delivered"] - self.dsmr_data["electricity_currently_returned"]
         # Total grid current on metrics stored.
         mv.grid_metrics["grid_current"] = (self.dsmr_data["phase_power_current_l1"] or 0) + \
                                           (self.dsmr_data["phase_power_current_l2"] or 0) + \
